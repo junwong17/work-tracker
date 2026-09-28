@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>工作 · 学习进度追踪</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
+        body { background: #f6f8fc; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 16px; }
+        .app { width: 1100px; max-width: 100%; background: #fff; border-radius: 28px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.15); overflow: hidden; display: flex; flex-direction: column; height: 90vh; max-height: 860px; }
+        .header { padding: 18px 28px; background: #fff; border-bottom: 1px solid #e9edf4; display: flex; justify-content: space-between; align-items: center; }
+        .logo { font-weight: 700; font-size: 1.3rem; background: linear-gradient(135deg, #1e2b4f, #2d3f6e); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+        .user-info { display: flex; align-items: center; gap: 12px; font-size: 0.85rem; color: #5b6f92; }
+        .logout-btn { background: #f0f4fe; border: 1px solid #d0daea; padding: 6px 16px; border-radius: 40px; cursor: pointer; font-size: 0.8rem; color: #1e2b4f; transition: all 0.15s; }
+        .logout-btn:hover { background: #e2e9fc; }
+        .main { display: flex; flex: 1; overflow: hidden; }
+        .sidebar { width: 240px; background: #fafbff; border-right: 1px solid #e9edf4; padding: 20px 12px; display: flex; flex-direction: column; gap: 6px; }
+        .nav-item { display: flex; align-items: center; gap: 10px; padding: 11px 16px; border-radius: 14px; font-weight: 500; color: #3a4a66; cursor: pointer; transition: all 0.15s; user-select: none; }
+        .nav-item:hover { background: #eef2ff; color: #1e2b4f; }
+        .nav-item.active { background: #1e2b4f; color: #fff; }
+        .nav-item .icon { font-size: 1.2rem; }
+        .content { flex: 1; padding: 24px 28px; overflow-y: auto; background: #fff; }
+        .page-title { font-size: 1.6rem; font-weight: 700; color: #0f1a2e; margin-bottom: 6px; }
+        .page-sub { color: #6b7b9a; margin-bottom: 20px; font-size: 0.9rem; }
+        .search-bar { display: flex; gap: 12px; margin-bottom: 20px; }
+        .search-input { flex: 1; padding: 10px 18px; border: 1px solid #d0daea; border-radius: 40px; font-size: 0.9rem; outline: none; transition: border-color 0.15s; }
+        .search-input:focus { border-color: #1e2b4f; }
+        .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
+        .card { background: #fff; border: 1px solid #e9edf4; border-radius: 20px; padding: 18px; transition: all 0.2s; cursor: pointer; position: relative; }
+        .card:hover { border-color: #b8c6e0; box-shadow: 0 10px 20px -8px rgba(30,43,79,0.12); transform: translateY(-2px); }
+        .card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+        .card-title { font-weight: 700; font-size: 1.1rem; color: #0f1a2e; }
+        .card-desc { color: #6b7b9a; font-size: 0.85rem; line-height: 1.5; margin-bottom: 16px; min-height: 2.4em; }
+        .card-footer { display: flex; justify-content: space-between; align-items: center; font-size: 0.78rem; color: #8e9db5; }
+        .badge { background: #eef2ff; border-radius: 40px; padding: 3px 10px; font-weight: 500; color: #2d3f6e; font-size: 0.72rem; }
+        .delete-btn { background: none; border: none; color: #b0bed6; font-size: 1.1rem; cursor: pointer; padding: 2px 6px; border-radius: 40px; transition: all 0.15s; line-height: 1; }
+        .delete-btn:hover { background: #ffe9e9; color: #c74242; }
+        .add-card { display: flex; align-items: center; justify-content: center; border: 2px dashed #d0daea; background: #fafbff; color: #5b6f92; font-weight: 600; gap: 6px; min-height: 140px; }
+        .add-card:hover { border-color: #1e2b4f; color: #1e2b4f; background: #f2f6ff; }
+        .add-card .plus { font-size: 1.4rem; }
+        .back-btn { display: inline-flex; align-items: center; gap: 6px; background: #f0f4fe; border: 1px solid transparent; padding: 8px 20px; border-radius: 40px; font-weight: 500; color: #1e2b4f; cursor: pointer; margin-bottom: 20px; font-size: 0.85rem; transition: all 0.15s; }
+        .back-btn:hover { background: #e2e9fc; border-color: #b8c6e0; }
+        .module-list { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
+        .module-item { background: #fafbff; border: 1px solid #e9edf4; border-radius: 14px; padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; }
+        .module-name { font-weight: 600; color: #1e2b4f; }
+        .empty-message { color: #9aabca; font-style: italic; padding: 32px 0; text-align: center; background: #fafbff; border-radius: 20px; border: 1px dashed #d0daea; }
+        .auth-container { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; background: #f6f8fc; padding: 20px; }
+        .auth-box { background: #fff; border-radius: 28px; padding: 40px; width: 400px; max-width: 100%; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.15); }
+        .auth-title { font-size: 1.6rem; font-weight: 700; color: #0f1a2e; margin-bottom: 6px; text-align: center; }
+        .auth-sub { color: #6b7b9a; font-size: 0.9rem; text-align: center; margin-bottom: 28px; }
+        .auth-input { width: 100%; padding: 12px 18px; border: 1px solid #d0daea; border-radius: 40px; font-size: 0.9rem; margin-bottom: 14px; outline: none; transition: border-color 0.15s; }
+        .auth-input:focus { border-color: #1e2b4f; }
+        .auth-btn { width: 100%; padding: 12px; background: #1e2b4f; color: #fff; border: none; border-radius: 40px; font-size: 0.95rem; font-weight: 600; cursor: pointer; transition: background 0.15s; }
+        .auth-btn:hover { background: #2d3f6e; }
+        .auth-switch { text-align: center; margin-top: 18px; font-size: 0.85rem; color: #6b7b9a; }
+        .auth-switch a { color: #1e2b4f; cursor: pointer; font-weight: 600; text-decoration: none; }
+        .auth-error { color: #c74242; font-size: 0.82rem; margin-bottom: 12px; text-align: center; min-height: 1.2em; }
+        .loading { text-align: center; padding: 40px; color: #8e9db5; }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cdd9eb; border-radius: 20px; }
+        @media (max-width: 700px) {
+            .sidebar { width: 60px; padding: 16px 6px; }
+            .nav-item span:not(.icon) { display: none; }
+            .nav-item { justify-content: center; }
+            .content { padding: 16px; }
+            .app { height: 100vh; border-radius: 0; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- ========== 登录页 ========== -->
+<div id="authPage" class="auth-container">
+    <div class="auth-box">
+        <div class="auth-title">📋 工作 · 学习追踪</div>
+        <div class="auth-sub">登录后数据自动同步到所有设备</div>
+        <div id="authError" class="auth-error"></div>
+        <input type="email" id="emailInput" class="auth-input" placeholder="邮箱" autocomplete="email">
+        <input type="password" id="passwordInput" class="auth-input" placeholder="密码（至少 6 位）" autocomplete="current-password">
+        <button id="loginBtn" class="auth-btn">登录</button>
+        <button id="signupBtn" class="auth-btn" style="background:#f0f4fe; color:#1e2b4f; margin-top:10px;">注册新账号</button>
+        <div class="auth-switch">
+            <a id="toggleAuthMode">没有账号？点此注册</a>
+        </div>
+    </div>
+</div>
+
+<!-- ========== 主应用 ========== -->
+<div id="appPage" class="app" style="display:none;">
+    <div class="header">
+        <div class="logo">📋 工作 · 学习追踪</div>
+        <div class="user-info">
+            <span id="userEmail"></span>
+            <button class="logout-btn" id="logoutBtn">退出</button>
+        </div>
+    </div>
+    <div class="main">
+        <div class="sidebar">
+            <div class="nav-item active" data-page="project">
+                <span class="icon">📁</span> <span>项目</span>
+            </div>
+            <div class="nav-item" data-page="study">
+                <span class="icon">📚</span> <span>学习</span>
+            </div>
+        </div>
+        <div class="content" id="contentArea">
+            <div class="loading">加载中...</div>
+        </div>
+    </div>
+</div>
+
+<script>
+// ============================================================
+// 1. 配置 Supabase（⚠️ 替换成你自己的项目 URL 和 anon key）
+// ============================================================
+const SUPABASE_URL = 'https://glvxmmmxcvixsgzumhhf.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_RwE6immIeT181jwgSW-d5A_5VyKOvEE';
+
+const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// ============================================================
+// 2. 全局状态
+// ============================================================
+let currentUser = null;
+let currentPage = 'project';
+let currentProjectId = null;
+let searchKeyword = '';
+let projectsCache = [];
+
+// ============================================================
+// 3. 认证逻辑
+// ============================================================
+const authPage = document.getElementById('authPage');
+const appPage = document.getElementById('appPage');
+const authError = document.getElementById('authError');
+const emailInput = document.getElementById('emailInput');
+const passwordInput = document.getElementById('passwordInput');
+const loginBtn = document.getElementById('loginBtn');
+const signupBtn = document.getElementById('signupBtn');
+const toggleAuthMode = document.getElementById('toggleAuthMode');
+
+let isSignupMode = false;
+
+toggleAuthMode.addEventListener('click', () => {
+    isSignupMode = !isSignupMode;
+    loginBtn.textContent = isSignupMode ? '注册' : '登录';
+    signupBtn.style.display = isSignupMode ? 'none' : 'block';
+    toggleAuthMode.textContent = isSignupMode ? '已有账号？点此登录' : '没有账号？点此注册';
+    authError.textContent = '';
+});
+
+async function handleAuth() {
+    const email = emailInput.value.trim();
+    const password = passwordInput.value;
+    if (!email || !password) { authError.textContent = '请填写邮箱和密码'; return; }
+    if (password.length < 6) { authError.textContent = '密码至少 6 位'; return; }
+
+    authError.textContent = '';
+    loginBtn.disabled = true;
+    loginBtn.textContent = '处理中...';
+
+    try {
+        let result;
+        if (isSignupMode) {
+            result = await supabaseClient.auth.signUp({ email, password });
+        } else {
+            result = await supabaseClient.auth.signInWithPassword({ email, password });
+        }
+        if (result.error) { authError.textContent = result.error.message; }
+        else if (isSignupMode && !result.data.session) {
+            authError.textContent = '注册成功，请查收邮箱确认链接后登录';
+        }
+    } catch (e) {
+        authError.textContent = '网络错误，请重试';
+    } finally {
+        loginBtn.disabled = false;
+        loginBtn.textContent = isSignupMode ? '注册' : '登录';
+    }
+}
+
+loginBtn.addEventListener('click', handleAuth);
+signupBtn.addEventListener('click', () => { isSignupMode = true; handleAuth(); });
+passwordInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') handleAuth(); });
+
+document.getElementById('logoutBtn').addEventListener('click', async () => {
+    await supabaseClient.auth.signOut();
+});
+
+// 监听认证状态
+supabaseClient.auth.onAuthStateChange((event, session) => {
+    if (session) {
+        currentUser = session.user;
+        document.getElementById('userEmail').textContent = currentUser.email;
+        authPage.style.display = 'none';
+        appPage.style.display = 'flex';
+        loadProjects();
+    } else {
+        currentUser = null;
+        authPage.style.display = 'flex';
+        appPage.style.display = 'none';
+    }
+});
+
+// ============================================================
+// 4. 数据操作：项目增删改查
+// ============================================================
+async function loadProjects() {
+    const contentArea = document.getElementById('contentArea');
+    contentArea.innerHTML = '<div class="loading">加载项目...</div>';
+    const { data, error } = await supabaseClient
+        .from('projects')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+    if (error) {
+        contentArea.innerHTML = `<div class="empty-message">加载失败：${error.message}</div>`;
+        return;
+    }
+    projectsCache = data || [];
+    renderProjectList();
+}
+
+async function createProject(name, desc) {
+    const { error } = await supabaseClient.from('projects').insert({
+        name,
+        description: desc || '',
+        owner_id: currentUser.id,
+    });
+    if (error) { alert('创建失败：' + error.message); return; }
+    await loadProjects();
+}
+
+async function deleteProject(id) {
+    const { error } = await supabaseClient.from('projects').delete().eq('id', id);
+    if (error) { alert('删除失败：' + error.message); return; }
+    if (currentProjectId === id) currentProjectId = null;
+    await loadProjects();
+}
+
+// ============================================================
+// 5. 渲染：项目列表
+// ============================================================
+function renderProjectList() {
+    const contentArea = document.getElementById('contentArea');
+    let filtered = projectsCache;
+    if (searchKeyword) {
+        const k = searchKeyword.toLowerCase();
+        filtered = projectsCache.filter(p =>
+            p.name.toLowerCase().includes(k) ||
+            (p.description || '').toLowerCase().includes(k)
+        );
+    }
+
+    let html = `
+        <div class="page-title">📁 项目</div>
+        <div class="page-sub">点击项目查看模块，数据自动同步到云端</div>
+        <div class="search-bar">
+            <input type="text" class="search-input" id="searchInput" placeholder="搜索项目名称或描述..." value="${escapeHtml(searchKeyword)}">
+        </div>
+        <div class="card-grid">
+    `;
+
+    filtered.forEach(proj => {
+        html += `
+            <div class="card" data-project-id="${proj.id}">
+                <div class="card-header">
+                    <div class="card-title">${escapeHtml(proj.name)}</div>
+                    <button class="delete-btn" data-delete-project="${proj.id}" title="删除">✕</button>
+                </div>
+                <div class="card-desc">${escapeHtml(proj.description || '暂无描述')}</div>
+                <div class="card-footer">
+                    <span class="badge">查看 →</span>
+                </div>
+            </div>
+        `;
+    });
+
+    html += `
+            <div class="card add-card" id="addProjectBtn">
+                <span class="plus">+</span> 新增项目
+            </div>
+        </div>
+    `;
+
+    contentArea.innerHTML = html;
+
+    // 搜索
+    const searchInput = document.getElementById('searchInput');
+    searchInput.addEventListener('input', (e) => {
+        searchKeyword = e.target.value;
+        renderProjectList();
+        // 保持焦点
+        const newInput = document.getElementById('searchInput');
+        if (newInput) { newInput.focus(); newInput.setSelectionRange(newInput.value.length, newInput.value.length); }
+    });
+
+    // 点击项目
+    document.querySelectorAll('.card[data-project-id]').forEach(card => {
+        card.addEventListener('click', (e) => {
+            if (e.target.closest('.delete-btn')) return;
+            currentProjectId = card.dataset.projectId;
+            renderProjectDetail();
+        });
+    });
+
+    // 删除项目
+    document.querySelectorAll('[data-delete-project]').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const id = btn.dataset.deleteProject;
+            const proj = projectsCache.find(p => p.id === id);
+            if (confirm(`确定删除项目 "${proj?.name}" 吗？`)) {
+                await deleteProject(id);
+            }
+        });
+    });
+
+    // 新增项目
+    document.getElementById('addProjectBtn')?.addEventListener('click', async () => {
+        const name = prompt('输入项目名称（如 RLE1039）：');
+        if (!name) return;
+        const desc = prompt('输入项目描述（可选）：') || '';
+        await createProject(name, desc);
+    });
+}
+
+// ============================================================
+// 6. 渲染：项目详情（模块列表）
+// ============================================================
+async function renderProjectDetail() {
+    const contentArea = document.getElementById('contentArea');
+    const proj = projectsCache.find(p => p.id === currentProjectId);
+    if (!proj) { currentProjectId = null; renderProjectList(); return; }
+
+    const { data: modules, error } = await supabaseClient
+        .from('modules')
+        .select('*')
+        .eq('project_id', currentProjectId)
+        .order('created_at', { ascending: true });
+
+    let html = `
+        <button class="back-btn" id="backToProjectList">← 返回项目列表</button>
+        <div class="page-title">📁 ${escapeHtml(proj.name)}</div>
+        <div class="page-sub">${escapeHtml(proj.description || '暂无描述')}</div>
+    `;
+
+    if (error || !modules || modules.length === 0) {
+        html += `<div class="empty-message">暂无模块，点击下方按钮添加</div>`;
+    } else {
+        html += `<div class="module-list">`;
+        modules.forEach(mod => {
+            html += `
+                <div class="module-item">
+                    <span class="module-name">${escapeHtml(mod.name)}</span>
+                    <span style="font-size:0.8rem;color:#8e9db5;">${mod.status || 'todo'}</span>
+                </div>
+            `;
+        });
+        html += `</div>`;
+    }
+
+    html += `<div style="margin-top:16px;"><button class="back-btn" id="addModuleBtn" style="background:#1e2b4f;color:#fff;">+ 新增模块</button></div>`;
+
+    contentArea.innerHTML = html;
+
+    document.getElementById('backToProjectList')?.addEventListener('click', () => {
+        currentProjectId = null;
+        renderProjectList();
+    });
+
+    document.getElementById('addModuleBtn')?.addEventListener('click', async () => {
+        const modName = prompt('输入模块名称：');
+        if (!modName) return;
+        const { error } = await supabaseClient.from('modules').insert({
+            project_id: currentProjectId,
+            name: modName,
+            status: 'todo',
+        });
+        if (error) { alert('添加失败：' + error.message); return; }
+        renderProjectDetail();
+    });
+}
+
+// ============================================================
+// 7. 学习页（占位）
+// ============================================================
+function renderStudyPage() {
+    const contentArea = document.getElementById('contentArea');
+    contentArea.innerHTML = `
+        <div class="page-title">📚 学习</div>
+        <div class="page-sub">学习模块将在阶段 2 实现（Markdown 笔记）</div>
+        <div class="empty-message">阶段 2 将支持 Markdown 编辑、导入和整理</div>
+    `;
+}
+
+// ============================================================
+// 8. 导航
+// ============================================================
+document.querySelectorAll('.nav-item').forEach(item => {
+    item.addEventListener('click', () => {
+        const page = item.dataset.page;
+        if (!page) return;
+        document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+        item.classList.add('active');
+        currentPage = page;
+        currentProjectId = null;
+        searchKeyword = '';
+        if (page === 'project') loadProjects();
+        else renderStudyPage();
+    });
+});
+
+// ============================================================
+// 9. 工具函数
+// ============================================================
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+// ============================================================
+// 10. 启动
+// ============================================================
+(async () => {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (session) {
+        currentUser = session.user;
+        document.getElementById('userEmail').textContent = currentUser.email;
+        authPage.style.display = 'none';
+        appPage.style.display = 'flex';
+        loadProjects();
+    }
+})();
+</script>
+</body>
+</html>
